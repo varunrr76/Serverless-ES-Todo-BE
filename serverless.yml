@@ -36,7 +36,7 @@ custom:
         title: TODO API ES
         description: Serverless application for TODO's ES
     models:
-      - name: CreateTodoRequestX
+      - name: CreateTodoRequest
         contentType: application/json
         schema: ${file(models/create-todo-request.json)}
     #   - name: UpdateTodoRequest
@@ -44,17 +44,17 @@ custom:
     #     schema: ${file(models/update-todo-request.json)}
 
 functions:
-  AuthX:
+  Auth:
     handler: src/lambda/auth/auth0Authorizer.handler
 
-  GetTodosX:
+  GetTodos:
     handler: src/lambda/http/getTodos.handler
     events:
       - http:
           method: get
           path: todos
           cors: true
-          authorizer: AuthX
+          authorizer: Auth
     iamRoleStatements:
       - Effect: Allow
         Action:
@@ -65,34 +65,34 @@ functions:
           - s3:GetObject
         Resource: arn:aws:s3:::${self:provider.environment.FILES_S3_BUCKET}/*
 
-  CreateTodoX:
+  CreateTodo:
     handler: src/lambda/http/createTodo.handler
     events:
       - http:
           method: post
           path: todos
           cors: true
-          authorizer: AuthX
+          authorizer: Auth
           reqValidatorName: RequestBodyValidator
           documentation:
             summary: Create a new todo
             description: Create a new todo
             requestModels:
-              "application/json": CreateTodoRequestX
+              'application/json': CreateTodoRequest
     iamRoleStatements:
       - Effect: Allow
         Action:
           - dynamodb:PutItem
         Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODO_TABLE}
 
-  DeleteTodoX:
+  DeleteTodo:
     handler: src/lambda/http/deleteTodo.handler
     events:
       - http:
           method: delete
           path: todos/{todoId}
           cors: true
-          authorizer: AuthX
+          authorizer: Auth
     iamRoleStatements:
       - Effect: Allow
         Action:
@@ -101,8 +101,8 @@ functions:
         Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODO_TABLE}
 
   SyncWithElasticsearch:
-    # environment:
-    #   ES_ENDPOINT: !GetAtt ImagesSearch.DomainEndpoint
+    environment:
+      ES_ENDPOINT: !GetAtt TodosSearch.DomainEndpoint
     handler: src/datalayer/elasticSearchSync.handler
     events:
       - stream:
@@ -129,9 +129,9 @@ resources:
         CorsConfiguration:
           CorsRules:
             - AllowedOrigins:
-                - "*"
+                - '*'
               AllowedHeaders:
-                - "*"
+                - '*'
               AllowedMethods:
                 - GET
                 - PUT
@@ -145,26 +145,26 @@ resources:
       Properties:
         PolicyDocument:
           Id: MyPolicy
-          Version: "2012-10-17"
+          Version: '2012-10-17'
           Statement:
             - Sid: PublicReadForGetBucketObjects
               Effect: Allow
-              Principal: "*"
-              Action: "s3:GetObject"
-              Resource: "arn:aws:s3:::${self:provider.environment.FILES_S3_BUCKET}/*"
+              Principal: '*'
+              Action: 's3:GetObject'
+              Resource: 'arn:aws:s3:::${self:provider.environment.FILES_S3_BUCKET}/*'
         Bucket: !Ref AttachmentsBucket
 
     RequestBodyValidator:
       Type: AWS::ApiGateway::RequestValidator
       Properties:
-        Name: "request-body-validator"
+        Name: 'request-body-validator'
         RestApiId:
           Ref: ApiGatewayRestApi
         ValidateRequestBody: true
         ValidateRequestParameters: false
 
     TodoDynamoDBTable:
-      Type: "AWS::DynamoDB::Table"
+      Type: 'AWS::DynamoDB::Table'
       Properties:
         AttributeDefinitions:
           - AttributeName: userId
@@ -193,24 +193,24 @@ resources:
     TodosSearch:
       Type: AWS::Elasticsearch::Domain
       Properties:
-        ElasticsearchVersion: "7.4"
+        ElasticsearchVersion: '7.4'
         DomainName: todos-search-${self:provider.stage}
         ElasticsearchClusterConfig:
           DedicatedMasterEnabled: false
-          InstanceCount: "1"
+          InstanceCount: '1'
           ZoneAwarenessEnabled: false
           InstanceType: t2.small.elasticsearch
         EBSOptions:
           EBSEnabled: true
           Iops: 0
           VolumeSize: 10
-          VolumeType: "gp2"
+          VolumeType: 'gp2'
 
         AccessPolicies:
-          Version: "2012-10-17"
+          Version: '2012-10-17'
           Statement:
             - Effect: Allow
               Principal:
-                AWS: "*"
-              Action: "es:*"
-              Resource: "*"
+                AWS: '*'
+              Action: 'es:*'
+              Resource: '*'
