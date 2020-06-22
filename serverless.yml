@@ -24,8 +24,8 @@ provider:
 
   environment:
     TODO_TABLE: TODO-Varun-ES-${self:provider.stage}
-    # TODO_TABLE_INDEX: todoIndex
-    FILES_S3_BUCKET: todo-varun-ES-${self:provider.stage}
+    TODO_TABLE_INDEX: todoIndex
+    FILES_S3_BUCKET: todo-varun-es-${self:provider.stage}
     SIGNED_URL_EXPIRATION: 300
 
 custom:
@@ -36,7 +36,7 @@ custom:
         title: TODO API ES
         description: Serverless application for TODO's ES
     models:
-      - name: CreateTodoRequest
+      - name: CreateTodoRequestX
         contentType: application/json
         schema: ${file(models/create-todo-request.json)}
     #   - name: UpdateTodoRequest
@@ -44,17 +44,17 @@ custom:
     #     schema: ${file(models/update-todo-request.json)}
 
 functions:
-  Auth:
+  AuthX:
     handler: src/lambda/auth/auth0Authorizer.handler
 
-  GetTodos:
+  GetTodosX:
     handler: src/lambda/http/getTodos.handler
     events:
       - http:
           method: get
           path: todos
           cors: true
-          authorizer: Auth
+          authorizer: AuthX
     iamRoleStatements:
       - Effect: Allow
         Action:
@@ -65,34 +65,34 @@ functions:
           - s3:GetObject
         Resource: arn:aws:s3:::${self:provider.environment.FILES_S3_BUCKET}/*
 
-  CreateTodo:
+  CreateTodoX:
     handler: src/lambda/http/createTodo.handler
     events:
       - http:
           method: post
           path: todos
           cors: true
-          authorizer: Auth
+          authorizer: AuthX
           reqValidatorName: RequestBodyValidator
           documentation:
             summary: Create a new todo
             description: Create a new todo
             requestModels:
-              "application/json": CreateTodoRequest
+              "application/json": CreateTodoRequestX
     iamRoleStatements:
       - Effect: Allow
         Action:
           - dynamodb:PutItem
         Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODO_TABLE}
 
-  DeleteTodo:
+  DeleteTodoX:
     handler: src/lambda/http/deleteTodo.handler
     events:
       - http:
           method: delete
           path: todos/{todoId}
           cors: true
-          authorizer: Auth
+          authorizer: AuthX
     iamRoleStatements:
       - Effect: Allow
         Action:
@@ -103,11 +103,11 @@ functions:
   SyncWithElasticsearch:
     # environment:
     #   ES_ENDPOINT: !GetAtt ImagesSearch.DomainEndpoint
-    handler: src/lambda/dynamoDb/elasticSearchSync.handler
+    handler: src/datalayer/elasticSearchSync.handler
     events:
       - stream:
           type: dynamodb
-          arn: !GetAtt TODO_TABLE.StreamArn
+          arn: !GetAtt TodoDynamoDBTable.StreamArn
 
 resources:
   Resources:
@@ -178,14 +178,39 @@ resources:
             KeyType: HASH
         BillingMode: PAY_PER_REQUEST
         StreamSpecification:
-          StreamViewType: NEW_ITEM
+          StreamViewType: NEW_IMAGE
         TableName: ${self:provider.environment.TODO_TABLE}
-        # GlobalSecondaryIndexes:
-        #   - IndexName: ${self:provider.environment.TODO_TABLE_INDEX}
-        #     KeySchema:
-        #       - AttributeName: userId
-        #         KeyType: HASH
-        #       - AttributeName: dueDate
-        #         KeyType: RANGE
-        #     Projection:
-        #       ProjectionType: ALL
+        GlobalSecondaryIndexes:
+          - IndexName: ${self:provider.environment.TODO_TABLE_INDEX}
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+              - AttributeName: dueDate
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+
+    TodosSearch:
+      Type: AWS::Elasticsearch::Domain
+      Properties:
+        ElasticsearchVersion: "7.4"
+        DomainName: todos-search-${self:provider.stage}
+        ElasticsearchClusterConfig:
+          DedicatedMasterEnabled: false
+          InstanceCount: "1"
+          ZoneAwarenessEnabled: false
+          InstanceType: t2.small.elasticsearch
+        EBSOptions:
+          EBSEnabled: true
+          Iops: 0
+          VolumeSize: 10
+          VolumeType: "gp2"
+
+        AccessPolicies:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                AWS: "*"
+              Action: "es:*"
+              Resource: "*"
