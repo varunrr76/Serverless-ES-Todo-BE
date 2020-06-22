@@ -109,6 +109,15 @@ functions:
           type: dynamodb
           arn: !GetAtt TodoDynamoDBTable.StreamArn
 
+  QueryElasticSearch:
+    handler: src/datalayer/elasticSearchQuery.ts
+    events:
+      - http:
+          method: get
+          path: todos/search
+          cors: true
+          authorizer: Auth
+
 resources:
   Resources:
     GatewayResponseDefault4XX:
